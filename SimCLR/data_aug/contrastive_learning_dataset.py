@@ -3,6 +3,7 @@ from data_aug.gaussian_blur import GaussianBlur
 from torchvision import transforms, datasets
 from data_aug.view_generator import ContrastiveLearningViewGenerator
 from exceptions.exceptions import InvalidDatasetSelection
+from DataLoader import AVDRIVEloader
 
 
 class ContrastiveLearningDataset:
@@ -12,19 +13,20 @@ class ContrastiveLearningDataset:
     @staticmethod
     def get_simclr_pipeline_transform(size, s=1):
         """Return a set of data augmentation transformations as described in the SimCLR paper."""
-        color_jitter = transforms.ColorJitter(0.8 * s, 0.8 * s, 0.8 * s, 0.2 * s)
-        data_transforms = transforms.Compose([transforms.RandomResizedCrop(size=size),
-                                              transforms.RandomHorizontalFlip(),
-                                              transforms.RandomApply([color_jitter], p=0.8),
+        # color_jitter = transforms.ColorJitter(0.8 * s, 0.8 * s, 0.8 * s, 0.2 * s)
+        data_transforms = transforms.Compose([transforms.RandomResizedCrop(size=size, ratio=(1,1)),
+                                              # transforms.RandomHorizontalFlip(),
+                                              transforms.RandomRotation(degree=180),
+                                              # transforms.RandomApply([color_jitter], p=0.8),
                                               transforms.RandomGrayscale(p=0.2),
-                                              GaussianBlur(kernel_size=int(0.1 * size)),
+                                              # GaussianBlur(kernel_size=int(0.1 * size)),
                                               transforms.ToTensor()])
         return data_transforms
 
-    def get_dataset(self, name, n_views):
+    def get_dataset(self, name, n_views, img):
         valid_datasets = {'cifar10': lambda: datasets.CIFAR10(self.root_folder, train=True,
                                                               transform=ContrastiveLearningViewGenerator(
-                                                                  self.get_simclr_pipeline_transform(32),
+                                                                  self.get_simclr_pipeline_transform(320),
                                                                   n_views),
                                                               download=True),
 
@@ -32,7 +34,11 @@ class ContrastiveLearningDataset:
                                                           transform=ContrastiveLearningViewGenerator(
                                                               self.get_simclr_pipeline_transform(96),
                                                               n_views),
-                                                          download=True)}
+                                                          download=True),
+
+                          'AVDrive': lambda: AVDRIVEloader(img,ContrastiveLearningViewGenerator(
+                                                                  self.get_simclr_pipeline_transform(320),
+                                                                  n_views))}
 
         try:
             dataset_fn = valid_datasets[name]
