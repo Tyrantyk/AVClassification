@@ -55,8 +55,8 @@ def test_in_train_AVDRIVE(test_loader, net, best_yi_all):
 
             # test_yfake_ves = torch.nn.functional.softmax(test_yfake_ves, dim=1)
             # test_yfake_ves = torch.argmax(test_yfake_ves, dim=1)
-            test_yfake_ves = torch.where(test_yfake_ves > 0.1, 1, 0)
-            test_yfake_ske = torch.where(test_yfake_ske > 0.1, 1, 0)
+            test_yfake_ves = torch.where(test_yfake_ves > 0.5, 1, 0)
+            test_yfake_ske = torch.where(test_yfake_ske > 0.5, 1, 0)
 
             # label = label.detach().cpu().numpy()
             label_ves = label_ves.detach().cpu().numpy()
