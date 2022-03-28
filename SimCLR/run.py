@@ -6,7 +6,7 @@ from data_aug.contrastive_learning_dataset import ContrastiveLearningDataset
 from models.resnet_simclr import ResNetSimCLR
 from simclr import SimCLR
 
-dir_avdrive_train_img = ".../data/training/img_aug_patch"
+dir_avdrive_train_img = "/workspace/workspace/DataGray/ul_img_patch"
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -22,11 +22,11 @@ parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet34',
                     help='model architecture: ' +
                          ' | '.join(model_names) +
                          ' (default: resnet34)')
-parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
+parser.add_argument('-j', '--workers', default=0, type=int, metavar='N',
                     help='number of data loading workers (default: 32)')
 parser.add_argument('--epochs', default=200, type=int, metavar='N',
                     help='number of total epochs to run')
-parser.add_argument('-b', '--batch-size', default=32, type=int,
+parser.add_argument('-b', '--batch-size', default=64, type=int,
                     metavar='N',
                     help='mini-batch size (default: 256), this is the total '
                          'batch size of all GPUs on the current node when '
@@ -45,7 +45,7 @@ parser.add_argument('--fp16-precision', action='store_true',
 
 parser.add_argument('--out_dim', default=128, type=int,
                     help='feature dimension (default: 128)')
-parser.add_argument('--log-every-n-steps', default=100, type=int,
+parser.add_argument('--log-every-n-steps', default=35, type=int,
                     help='Log every n steps')
 parser.add_argument('--temperature', default=0.07, type=float,
                     help='softmax temperature (default: 0.07)')
@@ -76,8 +76,8 @@ def main():
         train_dataset, batch_size=args.batch_size, shuffle=True,
         num_workers=args.workers, pin_memory=True, drop_last=True)
 
-    model = ResNetSimCLR(base_model=args.arch, out_dim=args.out_dim)
-
+    model = ResNetSimCLR(base_model=args.arch, out_dim=args.out_dim).cuda()
+    #modle = torch.nn.DataParallel(model, device_ids=[0, 1])
     optimizer = torch.optim.Adam(model.parameters(), args.lr, weight_decay=args.weight_decay)
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=len(train_loader), eta_min=0,
@@ -86,6 +86,8 @@ def main():
     #  It’s a no-op if the 'gpu_index' argument is a negative integer or None.
     with torch.cuda.device(args.gpu_index):
         simclr = SimCLR(model=model, optimizer=optimizer, scheduler=scheduler, args=args)
+        
+        #simclr = torch.nn.DataParallel(simclr, device_ids=[0, 1])
         simclr.train(train_loader)
 
 

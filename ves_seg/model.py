@@ -230,7 +230,7 @@ class ResUNet34_2task(torch.nn.Module):
         self.enc2_conv = torch.nn.Conv2d(self.filters[1], 1, kernel_size=1)
         self.enc1_conv = torch.nn.Conv2d(self.filters[0], 1, kernel_size=1)
 
-        self.ske_part = torch.nn.Conv2d(self.filters[0]/2, 1, 1, 1, bias=bias)
+        self.ske_part = torch.nn.Conv2d(8, 1, 1, 1, bias=bias)
 
         # self.e_nl3 = Inception_LocalNonLocal_v2(self.filters[2], 9, 7, 5, 3, 2, 1)
         # self.e_nl4 = Inception_LocalNonLocal_v2(self.filters[3], 9, 7, 5, 3, 2, 1)
@@ -281,7 +281,7 @@ class ResUNet34_2task(torch.nn.Module):
         out_dec2_task1 = self.dec2_task1(torch.cat([out_enc2_task1, out_up2_task1], dim=1))
         out_up1_task1 = self.up1_task1(out_dec2_task1)
         out_dec1_task1 = self.dec1_task1(torch.cat([out_enc1_task1, out_up1_task1], dim=1))
-        out_ske = self.ske_part(out_dec1_task1[:,self.filters[0]/2:,:,:])
+        out_ske = self.ske_part(out_dec1_task1[:,8:,:,:])
 
         out_ves = self.finalconv_task1(out_dec1_task1)
 

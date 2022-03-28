@@ -5,18 +5,19 @@ from model import *
 from DataLoader import *
 import argparse
 
-from new_test import *
+from test import *
 import random
 #os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
-dir_avdrive_train_img = "../data/training/images_aug_patch"
-dir_avdrive_train_gt = "../data/training/av_label_aug_patch"
-dir_avdrive_train_skeleton = "../data/training/skeleton_aug_patch"
-dir_avdrive_train_vessel = "../data/training/vessel_aug_patch"
-dir_avdrive_test_img = "../data/test/images"
-dir_avdrive_test_gt = "../data/test/av_all"
-dir_avdrive_test_skeleton = "../data/test/skeleton"
-dir_avdrive_test_vessel = "../data/test/vessel"
+dir_avdrive_train_img = "/workspace/workspace/data/training/images_aug_patch"
+dir_avdrive_train_gt = "/workspace/workspace/data/training/av_label_aug_patch"
+dir_avdrive_train_skeleton = "/workspace/workspace/data/training/skeleton_aug_patch"
+dir_avdrive_train_vessel = "/workspace/workspace/data/training/vessel_aug_patch"
+dir_avdrive_test_img = "/workspace/workspace/data/test/images"
+dir_avdrive_test_gt = "/workspace/workspace/data/test/av_all"
+dir_avdrive_test_skeleton = "/workspace/workspace/data/test/skeleton"
+dir_avdrive_test_vessel = "/workspace/workspace/data/test/vessel"
+dir_avdrive_test_mask = "/workspace/workspace/data/test/mask"
 
 parser = argparse.ArgumentParser(description='A/V classification')
 parser.add_argument('-l', default=0.5, type=float,
@@ -56,7 +57,7 @@ def train_2task_AVDRIVE():
     optimizer = torch.optim.Adam(net.parameters(), lr=1e-3, betas=(0.9, 0.999))
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)    
 
-    print('----------------' + dataset + '--------------------')
+    print('----------------AVDrive--------------------')
 
     best_yi_all = 0.
     for epoch in range(max_epoch):
@@ -94,17 +95,18 @@ def train_2task_AVDRIVE():
         print("loss:",train_epoch_loss.item())
         
         model_acc = test_in_train_AVDRIVE(testloader, net, best_yi_all)
-
+        #torch.save(net, 'net.pth')
         print("model_acc:",model_acc)
         if model_acc > best_yi_all:
             torch.save(net, 'net.pth')
             best_yi_all = model_acc
+        print(optimizer.state_dict()['param_groups'][0]['lr'])
         scheduler.step()
 
 if __name__ == '__main__':
-    avdrive_trainset = AVDRIVEloader(dir_avdrive_train_img, dir_avdrive_train_gt,dir_avdrive_test_skeleton, dir_avdrive_train_vessel)
+    avdrive_trainset = AVDRIVEloader(dir_avdrive_train_img, dir_avdrive_train_gt,dir_avdrive_train_skeleton, dir_avdrive_train_vessel)
     avdrive_trainloader = torch.utils.data.DataLoader(avdrive_trainset, batch_size=batch_size, shuffle=True)
 
-    avdrive_testset = AVDRIVEloader(dir_avdrive_test_img, dir_avdrive_test_gt, dir_avdrive_test_skeleton, dir_avdrive_test_vessel)
+    avdrive_testset = AVDRIVEloader(dir_avdrive_test_img, dir_avdrive_test_gt, dir_avdrive_test_skeleton, dir_avdrive_test_vessel, dir_avdrive_test_mask)
     avdrive_testloader = torch.utils.data.DataLoader(avdrive_testset, batch_size=1, shuffle=False)
     train_2task_AVDRIVE()

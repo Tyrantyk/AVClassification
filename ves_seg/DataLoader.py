@@ -8,33 +8,38 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class AVDRIVEloader(torch.utils.data.Dataset):
-    def __init__(self, dir_img=None, dir_gt=None, dir_skeleton=None, dir_ves=None):
+    def __init__(self, dir_img=None, dir_gt=None, dir_skeleton=None, dir_ves=None, dir_mask=None):
         super(AVDRIVEloader, self).__init__()
 
         self.dir_img = dir_img
         self.dir_gt = dir_gt
         self.dir_skeleton = dir_skeleton
         self.dir_ves = dir_ves
+        self.dir_mask = dir_mask
 
         fn_img = os.listdir(dir_img)
         fn_gt = os.listdir(dir_gt)
         fn_skeleton = os.listdir(dir_skeleton)
         fn_ves = os.listdir(dir_ves)
+        if dir_mask: fn_mask = os.listdir(dir_mask)
 
         fn_img.sort()
         fn_gt.sort()
         fn_skeleton.sort()
         fn_ves.sort()
-
+        if dir_mask: fn_mask.sort()
+        
         assert len(fn_img) == len(fn_gt)
         assert len(fn_img) == len(fn_skeleton)
         assert len(fn_img) == len(fn_ves)
+        
 
         idx = [*range(0, len(fn_img))]
         self.fn_img = [fn_img[i] for i in idx]
         self.fn_gt = [fn_gt[i] for i in idx]
         self.fn_skeleton = [fn_skeleton[i] for i in idx]
         self.fn_ves = [fn_ves[i] for i in idx]
+        if dir_mask: self.fn_mask = [fn_mask[i] for i in idx]
         self.nums_img = len(self.fn_img)
 
     def __len__(self):
@@ -45,14 +50,17 @@ class AVDRIVEloader(torch.utils.data.Dataset):
         gt_name = self.fn_gt[idx]
         skeleton_name = self.fn_skeleton[idx]
         ves_name = self.fn_ves[idx]
+        if self.dir_mask: mask_name = self.fn_mask[idx]
 
         img = self.img_process(self.dir_img, img_name, type='img')
         gt = self.img_process(self.dir_gt, gt_name, type='gt')
         #img, gt = self.special_process(self.dir_img, self.dir_gt, img_name, gt_name)
         skeleton = self.img_process(self.dir_skeleton, skeleton_name, type='skeleton')
         ves = self.img_process(self.dir_ves, ves_name, type='vessel')
+        if self.dir_mask: mask = self.img_process(self.dir_mask, mask_name, type='vessel')
         #img = torch.cat((img,ves),0)
-        return img, gt, ves
+        if self.dir_mask: return img, gt, skeleton, ves, mask
+        else: return img, gt, skeleton, ves
 
     def special_process(self,dir_img, dir_gt, img_name, gt_name):
         img = Image.open(os.path.join(dir_img, img_name))
