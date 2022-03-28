@@ -168,6 +168,38 @@ class Inception_LocalNonLocal_v2(torch.nn.Module):
 
         return x + self.bn(self.final1x1(pre_output1 + pre_output2 + pre_output3 + pre_output4))  #四个不同大小框运算结果相加 然后1x1卷积 批标准化 再残差
 
+class Inception_LocalNonLocal_single(torch.nn.Module):
+    def __init__(self, channels, k1, m=None, stride=1):
+        super(Inception_LocalNonLocal_v2, self).__init__()
+        self.channels = channels
+        self.k1 = k1
+        self.stride = stride
+        self.m = m or 8
+
+        self.kmap = KeyQueryMap(channels, self.m)  #1x1卷积 通道数减少为 除m
+        self.qmap = KeyQueryMap(channels, self.m)
+        self.xmap = KeyQueryMap(channels, self.m)
+        self.ac1 = AppearanceComposability_localnonlocal(k1, k1 // 2, self.stride)
+
+        self.unfold1 = torch.nn.Unfold(k1, 1, k1 // 2, self.stride)
+        self.final1x1 = torch.nn.Conv2d(channels // m, channels, 1)
+        self.bn = torch.nn.BatchNorm2d(channels)
+
+    def forward(self, x, vessel):  # x = [N,C,H,W]
+        km = self.kmap(x) * vessel  # [N,C/m,h,w] kmap(x)([4, 64, 64, 64]) vessel([4, 1, 64, 64]) km [4, 64, 64, 64]
+        qm = self.qmap(x)  # [N,C/m,h,w]  [4, 64, 64, 64]
+        ak1 = self.ac1((km, qm))  # [N,C/m,H_out*W_out, k,k]  [4, 4096, 81, 1]
+
+        ck1 = torch.nn.functional.softmax(ak1, dim=-2)  # [N, H*W, k*k] [4, 4096, 81, 1]
+        xm = self.xmap(x)
+
+        xm_unfold1 = self.unfold1(xm).transpose(2, 1).contiguous()
+        xm_unfold1 = xm_unfold1.view(xm.shape[0], -1, xm.shape[1], xm_unfold1.shape[-1] // xm.shape[1]) # [4, 4096, 64, 81]   对value map进行同样的操作
+
+        pre_output1 = torch.matmul(xm_unfold1, ck1).squeeze(dim=-1).transpose(1, 2) #[4, 64, 4096]  value map与之前的kqmap运算结果相乘 去掉了local框 回来了通道
+        pre_output1 = pre_output1.view(pre_output1.shape[0], pre_output1.shape[1], x.shape[2], x.shape[3]) # [4, 64, 64, 64] reshape成传入时的大小和维度
+
+        return x + self.bn(self.final1x1(pre_output1))  #四个不同大小框运算结果相加 然后1x1卷积 批标准化 再残差
 
 class ResUNet34_2task(torch.nn.Module):
 
@@ -301,6 +333,110 @@ class ResUNet34_2task(torch.nn.Module):
 
 
         return torch.sigmoid(out_task1), out_task2
+
+    class ResUNet34_2task_cascade(torch.nn.Module):
+
+        def __init__(self, in_ch, simclr, bilinear=False, layer_return=False, bias=False):
+            super(ResUNet34_2task, self).__init__()
+            self.layer_return = layer_return
+            self.bias = bias
+            self.base_channel = 16
+            self.up = upsample_x2
+            self.decoder = Double_conv
+            block = BasicBlock
+            self.filters = [self.base_channel, self.base_channel * 2, self.base_channel * 4, self.base_channel * 8,
+                            self.base_channel * 16]
+            self.firstconv = torch.nn.Sequential(*[torch.nn.Conv2d(in_ch, self.base_channel, 3, padding=1),
+                                                   torch.nn.BatchNorm2d(self.base_channel),
+                                                   torch.nn.ReLU(inplace=True)])
+            self.enc1 = self._make_layer(block, self.filters[0], self.filters[0], 3, 1)
+            self.enc2 = self._make_layer(block, self.filters[0], self.filters[1], 4, 2)
+            self.enc3 = self._make_layer(block, self.filters[1], self.filters[2], 6, 2)
+            self.enc4 = self._make_layer(block, self.filters[2], self.filters[3], 3, 2)
+
+            self.centerblock = Double_conv(self.filters[3], self.filters[3], bias=bias)
+
+            self.up4_task1 = self.up(False, self.filters[4], self.filters[3])
+            self.dec4_task1 = self.decoder(self.filters[3] * 2, self.filters[3], 0., bias=bias)
+            self.up3_task1 = self.up(False, self.filters[3], self.filters[2])
+            self.dec3_task1 = self.decoder(self.filters[2] * 2, self.filters[2], 0., bias=bias)
+            self.up2_task1 = self.up(False, self.filters[2], self.filters[1])
+            self.dec2_task1 = self.decoder(self.filters[1] * 2, self.filters[1], 0., bias=bias)
+            self.up1_task1 = self.up(False, self.filters[1], self.filters[0])
+            self.dec1_task1 = self.decoder(self.filters[0] * 2, self.filters[0], 0., bias=bias)
+            self.finalconv_task1 = torch.nn.Conv2d(self.filters[0], 1, 1, 1, bias=bias)
+
+            self.up4_task2 = self.up(False, self.filters[4], self.filters[3])
+            self.dec4_task2 = self.decoder(self.filters[3] * 2, self.filters[3], 0., bias=bias)
+            self.up3_task2 = self.up(False, self.filters[3], self.filters[2])
+            self.dec3_task2 = self.decoder(self.filters[2] * 2, self.filters[2], 0., bias=bias)
+            self.up2_task2 = self.up(False, self.filters[2], self.filters[1])
+            self.dec2_task2 = self.decoder(self.filters[1] * 2, self.filters[1], 0., bias=bias)
+            self.up1_task2 = self.up(False, self.filters[1], self.filters[0])
+            self.dec1_task2 = self.decoder(self.filters[0] * 2, self.filters[0], 0., bias=bias)
+            self.finalconv_task2 = torch.nn.Conv2d(self.filters[0], 4, 1, 1, bias=bias)
+
+            self.dec1_conv = torch.nn.Conv2d(self.filters[0], 1, kernel_size=1)
+            self.dec2_conv = torch.nn.Conv2d(self.filters[1], 1, kernel_size=1)
+            self.dec3_conv = torch.nn.Conv2d(self.filters[2], 1, kernel_size=1)
+            self.dec4_conv = torch.nn.Conv2d(self.filters[3], 1, kernel_size=1)
+
+            self.e_nl1 = Inception_LocalNonLocal_single(self.filters[2], 3, 2, 1)
+            self.e_nl2 = Inception_LocalNonLocal_single(self.filters[3], 5, 2, 1)
+            self.e_nl3 = Inception_LocalNonLocal_single(self.filters[2], 7, 2, 1)
+            self.e_nl4 = Inception_LocalNonLocal_single(self.filters[3], 9, 2, 1)
+
+        def _make_layer(self, block, in_planes, planes, num_blocks, stride):
+            strides = [stride] + [1] * (num_blocks - 1)
+            layers = []
+            for stride in strides:
+                layers.append(block(in_planes, planes, stride))
+                in_planes = planes * block.expansion
+            return nn.Sequential(*layers)
+
+        def forward(self, x):
+            # encoder
+            out_first = self.firstconv(x)
+            out_enc1 = self.enc1(out_first)
+            out_enc2 = self.enc2(out_enc1)
+            out_enc3 = self.enc3(out_enc2)
+            out_enc4 = self.enc4(out_enc3)
+            out_center = self.centerblock(out_enc4)
+
+            # decoder vessel segmentation
+            out_dec4_task1 = self.dec4_task1(torch.cat([out_enc4, out_center], dim=1))
+            out_up3_task1 = self.up3_task1(out_dec4_task1)
+            out_dec3_task1 = self.dec3_task1(torch.cat([out_enc3, out_up3_task1], dim=1))
+            out_up2_task1 = self.up2_task1(out_dec3_task1)
+
+            out_dec2_task1 = self.dec2_task1(torch.cat([out_enc2, out_up2_task1], dim=1))
+            out_up1_task1 = self.up1_task1(out_dec2_task1)
+            out_dec1_task1 = self.dec1_task1(torch.cat([out_enc1, out_up1_task1], dim=1))
+            activate = self.activation(out_dec1_task1)
+            out_task1 = self.finalconv_task1(out_dec1_task1)
+
+            # decoder a/v classification
+            vessel1 = self.dec4_conv(out_dec4_task1).sigmoid()
+            out_dec4_task2 = self.dec4_task2(torch.cat([out_enc4, out_center], dim=1))
+            out_dec4_task2 = self.e_nl4(out_dec4_task2, vessel1)
+            out_up3_task2 = self.up3_task2(out_dec4_task2)
+
+            vessel2 = self.dec3_conv(out_dec3_task1).sigmoid()
+            out_dec3_task2 = self.dec3_task2(torch.cat([out_enc3, out_up3_task2], dim=1))
+            out_dec3_task2 = self.e_nl3(out_dec3_task2, vessel2)
+            out_up2_task2 = self.up2_task2(out_dec3_task2)
+
+            vessel3 = self.dec2_conv(out_dec2_task1).sigmoid()
+            out_dec2_task2 = self.dec2_task2(torch.cat([out_enc2, out_up2_task2], dim=1))
+            out_dec2_task2 = self.e_nl2(out_dec2_task2, vessel3)
+            out_up1_task2 = self.up1_task2(out_dec2_task2)
+
+            vessel4 = self.dec1_conv(out_dec1_task1).sigmoid()
+            out_dec1_task2 = self.dec1_task2(torch.cat([out_enc1, out_up1_task2], dim=1))
+            out_dec1_task2 = self.e_nl1(out_dec1_task2, vessel4)
+            out_task2 = self.finalconv_task2(out_dec1_task2)
+
+            return torch.sigmoid(out_task1), out_task2
 
 
 

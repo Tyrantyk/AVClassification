@@ -1,3 +1,0 @@
-# AVClassification
-pycharm
-# underconstruction
