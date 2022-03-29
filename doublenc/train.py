@@ -83,8 +83,6 @@ def train_2task_AVDRIVE(dataset='AVDRIVE'):
             real_img.requires_grad = False
             label.requires_grad = False
             ves.requires_grad = False
-           
-
 
             real_img = real_img.cuda()
             label = label.cuda().long()
@@ -113,7 +111,7 @@ def train_2task_AVDRIVE(dataset='AVDRIVE'):
         #if model_acc > best_yi_all:
         #    torch.save(net, 'net.pth')
         #    best_yi_all = model_acc
-        #scheduler.step()
+        scheduler.step()
 
 if __name__ == '__main__':
     avdrive_trainset = AVDRIVEloader(dir_avdrive_train_img, dir_avdrive_train_gt,dir_avdrive_test_skeleton, dir_avdrive_train_vessel)

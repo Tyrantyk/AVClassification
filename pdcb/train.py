@@ -31,6 +31,7 @@ parser.add_argument('-seed', default=20, type=int,
                     help='random seed')
 args = parser.parse_args()
 lossf_ce = torch.nn.CrossEntropyLoss(ignore_index=3)
+lossf_weightce = CrossEntropyLoss()
 lossf_bce = torch.nn.BCELoss()
 
 random.seed(args.seed)
@@ -54,27 +55,15 @@ def train_2task_AVDRIVE(dataset='AVDRIVE'):
         trainloader = avdrive_trainloader
         testloader = avdrive_testloader
 
-    #j_net = Resnet34_jigsaw(3,340).cuda()
-    #j_net = torch.load('./2pre_net.pth')
     net = ResUNet34_2task(3).cuda()
-    #net = torch.load('./ffinalnet.pth')
 
-    #ema = EMA(net, 0.999)
-    #ema.register()
-
-    #frozen_layers = [net.enc4]
-    #for layer in frozen_layers:
-    #    for name, p in layer.named_parameters():
-    #        p.requires_grad = False
     for name,p in net.named_parameters():
         p.requires_grad = True
     
     optimizer = torch.optim.Adam(net.parameters(), lr=1e-3, betas=(0.9, 0.999))
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
 
-
     print('----------------' + dataset + '--------------------')
-
 
     best_yi_all = 0.
     for epoch in range(max_epoch):
@@ -87,8 +76,6 @@ def train_2task_AVDRIVE(dataset='AVDRIVE'):
             label.requires_grad = False
             ves.requires_grad = False
            
-
-
             real_img = real_img.cuda().float()
             label = label.cuda().long()
             ves = ves.cuda().float()
@@ -97,25 +84,22 @@ def train_2task_AVDRIVE(dataset='AVDRIVE'):
             net.zero_grad()
             
             fake_2ves, fake_ves = net(real_img)
-            loss_ves = lossf_ce(fake_ves, label)
+            # loss_ves = lossf_ce(fake_ves, label)
             loss_bves = lossf_bce(fake_2ves,ves)
+            loss_ves = lossf_weightce(fake_ves, label)
 
             #print(loss_ves.item(), loss_bves.item())
             loss = (1-l)*loss_ves + l*loss_bves
             train_epoch_loss = train_epoch_loss + loss
             loss.backward()
             optimizer.step()
-            #ema.update()
 
 
         train_epoch_loss = train_epoch_loss / len(trainloader)
         print("loss:",train_epoch_loss.item())
         
         model_acc = test_in_train_AVDRIVE(testloader, net, best_yi_all, epoch)
-        #ema.apply_shadow()
-        #yi = test_in_train_AVDRIVE(testloader, net, best_yi_all, epoch)
-         
-        #ema.restore()
+
         print("model_acc:",model_acc)
         if model_acc > best_yi_all:
             torch.save(net, 'finalnet.pth')

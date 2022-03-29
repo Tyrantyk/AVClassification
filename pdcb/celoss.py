@@ -17,6 +17,10 @@ class CrossEntropyLoss(torch.nn.Module):
         target = target.view(-1, 1)    # [NHW，1]
 
         logits = F.log_softmax(logits, 1)
+        print(logits.shape)
+        for i in range(logits.shape[0]):
+            if target[i] != 0:
+                logits[i][target[i]] *= 1.5
         logits = logits.gather(1, target)   # [NHW, 1]
         loss = -1 * logits
 
@@ -25,3 +29,13 @@ class CrossEntropyLoss(torch.nn.Module):
         elif self.reduction == 'sum':
             loss = loss.sum()
         return loss
+
+if __name__ == '__main__':
+    logits = torch.tensor(np.random.random((1,3,30,30)),dtype=torch.float32)
+    label = torch.tensor(np.random.randint(0,2,(1,30,30),dtype=np.int64))
+
+    celoss = CrossEntropyLoss()
+    loss = celoss(logits, label)
+
+    print(loss)
+
