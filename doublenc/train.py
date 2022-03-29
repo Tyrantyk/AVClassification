@@ -1,26 +1,23 @@
 import numpy as np
 import os
 import torchvision.transforms
-from model import *
+from model import ResUNet34_2task_cascade
 from DataLoader import *
 import argparse
 import time
 from new_test import *
-from ema import *
-from layer_name import *
 import random
 from PIL import Image
-from models.resnet_simclr import ResNetSimCLR
 #os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
-dir_avdrive_train_img = "../data/training/images_aug_patch"
-dir_avdrive_train_gt = "../data/training/av_label_aug_patch"
-dir_avdrive_train_skeleton = "../data/training/skeleton_aug_patch"
-dir_avdrive_train_vessel = "../data/training/vessel_aug_patch"
-dir_avdrive_test_img = "../data/test/images"
-dir_avdrive_test_gt = "../data/test/av_all"
-dir_avdrive_test_skeleton = "../data/test/skeleton"
-dir_avdrive_test_vessel = "../data/test/vessel"
+dir_avdrive_train_img = "/workspace/workspace/data/training/images_aug_patch"
+dir_avdrive_train_gt = "/workspace/workspace/data/training/av_label_aug_patch"
+dir_avdrive_train_skeleton = "/workspace/workspace/data/training/skeleton_aug_patch"
+dir_avdrive_train_vessel = "/workspace/workspace/data/training/vessel_aug_patch"
+dir_avdrive_test_img = "/workspace/workspace/data/test/images"
+dir_avdrive_test_gt = "/workspace/workspace/data/test/av_all"
+dir_avdrive_test_skeleton = "/workspace/workspace/data/test/skeleton"
+dir_avdrive_test_vessel = "/workspace/workspace/data/test/vessel"
 
 parser = argparse.ArgumentParser(description='A/V classification')
 parser.add_argument('-l', default=0.5, type=float,
@@ -54,13 +51,13 @@ def train_2task_AVDRIVE(dataset='AVDRIVE'):
         trainloader = avdrive_trainloader
         testloader = avdrive_testloader
 
-    simclr = ResNetSimCLR('resnet34', 128).cuda()
-    dic = torch.load('checkpoint_0200.pth.tar')
-    simclr = torch.nn.DataParallel(simclr)
-    simclr.load_state_dict(dic['state_dict'])
+    #simclr = ResNetSimCLR('resnet34', 128).cuda()
+    #dic = torch.load('checkpoint_0200.pth.tar')
+    #simclr = torch.nn.DataParallel(simclr)
+    #simclr.load_state_dict(dic['state_dict'])
       
-    net = ResUNet34_2task(3,simclr).cuda()
-    net = torch.load('net.pth')      
+    net = ResUNet34_2task_cascade(3).cuda()
+    #net = torch.load('net.pth')      
     for name,p in net.named_parameters():
         p.requires_grad = True
     
@@ -111,12 +108,12 @@ def train_2task_AVDRIVE(dataset='AVDRIVE'):
         print("loss:",train_epoch_loss.item())
         torch.save(net, 'finalnet.pth')
         #if epoch % 2 == 0: 
-        model_acc = test_in_train_AVDRIVE(testloader, net, best_yi_all)
-        #    print("model_acc:",model_acc)
+        #model_acc = test_in_train_AVDRIVE(testloader, net, best_yi_all)
+        #print("model_acc:",model_acc)
         #if model_acc > best_yi_all:
         #    torch.save(net, 'net.pth')
         #    best_yi_all = model_acc
-        scheduler.step()
+        #scheduler.step()
 
 if __name__ == '__main__':
     avdrive_trainset = AVDRIVEloader(dir_avdrive_train_img, dir_avdrive_train_gt,dir_avdrive_test_skeleton, dir_avdrive_train_vessel)

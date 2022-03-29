@@ -170,7 +170,7 @@ class Inception_LocalNonLocal_v2(torch.nn.Module):
 
 class Inception_LocalNonLocal_single(torch.nn.Module):
     def __init__(self, channels, k1, m=None, stride=1):
-        super(Inception_LocalNonLocal_v2, self).__init__()
+        super(Inception_LocalNonLocal_single, self).__init__()
         self.channels = channels
         self.k1 = k1
         self.stride = stride
@@ -186,7 +186,7 @@ class Inception_LocalNonLocal_single(torch.nn.Module):
         self.bn = torch.nn.BatchNorm2d(channels)
 
     def forward(self, x, vessel):  # x = [N,C,H,W]
-        km = self.kmap(x) * vessel  # [N,C/m,h,w] kmap(x)([4, 64, 64, 64]) vessel([4, 1, 64, 64]) km [4, 64, 64, 64]
+        km = self.kmap(x*vessel)  # [N,C/m,h,w] kmap(x)([4, 64, 64, 64]) vessel([4, 1, 64, 64]) km [4, 64, 64, 64]
         qm = self.qmap(x)  # [N,C/m,h,w]  [4, 64, 64, 64]
         ak1 = self.ac1((km, qm))  # [N,C/m,H_out*W_out, k,k]  [4, 4096, 81, 1]
 
@@ -334,10 +334,10 @@ class ResUNet34_2task(torch.nn.Module):
 
         return torch.sigmoid(out_task1), out_task2
 
-    class ResUNet34_2task_cascade(torch.nn.Module):
+class ResUNet34_2task_cascade(torch.nn.Module):
 
-        def __init__(self, in_ch, simclr, bilinear=False, layer_return=False, bias=False):
-            super(ResUNet34_2task, self).__init__()
+        def __init__(self, in_ch, bilinear=False, layer_return=False, bias=False):
+            super(ResUNet34_2task_cascade, self).__init__()
             self.layer_return = layer_return
             self.bias = bias
             self.base_channel = 16
@@ -381,8 +381,8 @@ class ResUNet34_2task(torch.nn.Module):
             self.dec3_conv = torch.nn.Conv2d(self.filters[2], 1, kernel_size=1)
             self.dec4_conv = torch.nn.Conv2d(self.filters[3], 1, kernel_size=1)
 
-            self.e_nl1 = Inception_LocalNonLocal_single(self.filters[2], 3, 2, 1)
-            self.e_nl2 = Inception_LocalNonLocal_single(self.filters[3], 5, 2, 1)
+            self.e_nl1 = Inception_LocalNonLocal_single(self.filters[0], 3, 2, 1)
+            self.e_nl2 = Inception_LocalNonLocal_single(self.filters[1], 5, 2, 1)
             self.e_nl3 = Inception_LocalNonLocal_single(self.filters[2], 7, 2, 1)
             self.e_nl4 = Inception_LocalNonLocal_single(self.filters[3], 9, 2, 1)
 
@@ -412,26 +412,25 @@ class ResUNet34_2task(torch.nn.Module):
             out_dec2_task1 = self.dec2_task1(torch.cat([out_enc2, out_up2_task1], dim=1))
             out_up1_task1 = self.up1_task1(out_dec2_task1)
             out_dec1_task1 = self.dec1_task1(torch.cat([out_enc1, out_up1_task1], dim=1))
-            activate = self.activation(out_dec1_task1)
             out_task1 = self.finalconv_task1(out_dec1_task1)
 
             # decoder a/v classification
-            vessel1 = self.dec4_conv(out_dec4_task1).sigmoid()
+            vessel1 = out_dec4_task1.sigmoid()
             out_dec4_task2 = self.dec4_task2(torch.cat([out_enc4, out_center], dim=1))
             out_dec4_task2 = self.e_nl4(out_dec4_task2, vessel1)
             out_up3_task2 = self.up3_task2(out_dec4_task2)
 
-            vessel2 = self.dec3_conv(out_dec3_task1).sigmoid()
+            vessel2 = out_dec3_task1.sigmoid()
             out_dec3_task2 = self.dec3_task2(torch.cat([out_enc3, out_up3_task2], dim=1))
             out_dec3_task2 = self.e_nl3(out_dec3_task2, vessel2)
             out_up2_task2 = self.up2_task2(out_dec3_task2)
 
-            vessel3 = self.dec2_conv(out_dec2_task1).sigmoid()
+            vessel3 = out_dec2_task1.sigmoid()
             out_dec2_task2 = self.dec2_task2(torch.cat([out_enc2, out_up2_task2], dim=1))
             out_dec2_task2 = self.e_nl2(out_dec2_task2, vessel3)
             out_up1_task2 = self.up1_task2(out_dec2_task2)
 
-            vessel4 = self.dec1_conv(out_dec1_task1).sigmoid()
+            vessel4 = out_dec1_task1.sigmoid()
             out_dec1_task2 = self.dec1_task2(torch.cat([out_enc1, out_up1_task2], dim=1))
             out_dec1_task2 = self.e_nl1(out_dec1_task2, vessel4)
             out_task2 = self.finalconv_task2(out_dec1_task2)
