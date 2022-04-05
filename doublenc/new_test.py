@@ -10,10 +10,10 @@ from DataLoader import *
 from model import *
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 from models.resnet_simclr import ResNetSimCLR
-dir_avdrive_test_img = "../data/test/images"
-dir_avdrive_test_gt = "../data/test/av_all"
-dir_avdrive_test_skeleton = "../data/test/skeleton"
-dir_avdrive_test_vessel = "../data/test/vessel"
+dir_avdrive_test_img = "/workspace/workspace/data/test/images"
+dir_avdrive_test_gt = "/workspace/workspace/data/test/av_all"
+dir_avdrive_test_skeleton = "/workspace/workspace/data/test/skeleton"
+dir_avdrive_test_vessel = "/workspace/workspace/data/test/vessel"
 
 # dir_avdrive_test_img = r"D:\CV\CV_Project\avseg\data\training\images_aug_patch"
 # dir_avdrive_test_gt = r"D:\CV\CV_Project\avseg\data\training\av_label_aug_patch"
@@ -186,11 +186,11 @@ def test_in_train_AVDRIVE(test_loader, net, best_yi_all):
 if __name__ == '__main__':
     avdrive_testset = AVDRIVEloader(dir_avdrive_test_img, dir_avdrive_test_gt, dir_avdrive_test_skeleton,dir_avdrive_test_vessel)
     avdrive_testloader = torch.utils.data.DataLoader(avdrive_testset, batch_size=1, shuffle=False)
-    simclr = ResNetSimCLR('resnet34', 128).cuda()
-    dic = torch.load('checkpoint_0200.pth.tar')
-    simclr = torch.nn.DataParallel(simclr)
-    simclr.load_state_dict(dic['state_dict'])
-    net = ResUNet34_2task(3,simclr).cuda()
+    #simclr = ResNetSimCLR('resnet34', 128).cuda()
+    #dic = torch.load('checkpoint_0200.pth.tar')
+    #simclr = torch.nn.DataParallel(simclr)
+    #simclr.load_state_dict(dic['state_dict'])
+    net = ResUNet34_2task_cascade(3).cuda()
     # model_dict = torch.load('./finalnet.pth',map_location=torch.device('cpu')).module.state_dict()
     # net.load_state_dict(model_dict)
     # net = torch.nn.DataParallel(net)

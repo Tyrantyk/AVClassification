@@ -51,34 +51,34 @@ def test_in_train_AVDRIVE(test_loader, net, best_yi_all):
             label_ves = test_ves_pad
             label_skeleton = test_skeleton_pad
             
-            test_yfake_ves, test_yfake_ske = net(net_input)
-
+            #test_yfake_ves, test_yfake_ske = net(net_input)
+            _, test_yfake_ves = net(net_input)
             # test_yfake_ves = torch.nn.functional.softmax(test_yfake_ves, dim=1)
             # test_yfake_ves = torch.argmax(test_yfake_ves, dim=1)
-            test_yfake_ves = torch.where(test_yfake_ves > 0.5, 1, 0)
-            test_yfake_ske = torch.where(test_yfake_ske > 0.5, 1, 0)
+            test_yfake_ves = torch.where(test_yfake_ves > 0.6, 1, 0)
+            #test_yfake_ske = torch.where(test_yfake_ske > 0.5, 1, 0)
 
             # label = label.detach().cpu().numpy()
             label_ves = label_ves.detach().cpu().numpy()
-            label_skeleton = label_skeleton.detach().cpu().numpy()
+            #label_skeleton = label_skeleton.detach().cpu().numpy()
 
             test_yfake_ves = test_yfake_ves.squeeze().detach().cpu().numpy()
-            test_yfake_ske = test_yfake_ske.squeeze().detach().cpu().numpy()
+            #test_yfake_ske = test_yfake_ske.squeeze().detach().cpu().numpy()
 
             label_ves = label_ves.reshape(-1)
-            label_skeleton = label_skeleton.reshape(-1)
+            #label_skeleton = label_skeleton.reshape(-1)
             test_yfake_ves = test_yfake_ves.reshape(-1)
-            test_yfake_ske = test_yfake_ske.reshape(-1)
+            #test_yfake_ske = test_yfake_ske.reshape(-1)
 
             matrix_ves = confusion_matrix(label_ves, test_yfake_ves)
-            matrix_ske = confusion_matrix(label_skeleton, test_yfake_ske)
+            #matrix_ske = confusion_matrix(label_skeleton, test_yfake_ske)
             tp1, fn1, fp1, tn1= matrix_ves[0,0], matrix_ves[0,1], matrix_ves[1,0], matrix_ves[1,1]
-            tp2, fn2, fp2, tn2 = matrix_ske[0, 0], matrix_ske[0, 1], matrix_ske[1, 0], matrix_ske[1, 1]
+            #tp2, fn2, fp2, tn2 = matrix_ske[0, 0], matrix_ske[0, 1], matrix_ske[1, 0], matrix_ske[1, 1]
 
             se_ves = tp1 / (tp1+fn1)
             sp_ves = tn1 / (tn1+fp1)
             acc_ves = (tp1 + tn1 - mask_drop) / mask_cnt
-            acc_ske = (tp2 + tn2 - mask_drop) / mask_cnt
+            #acc_ske = (tp2 + tn2 - mask_drop) / mask_cnt
             acc_gt = tn1 / gt_cnt
             yi_ves = se_ves + sp_ves - 1
             print(acc_gt, acc_ves)
@@ -87,21 +87,21 @@ def test_in_train_AVDRIVE(test_loader, net, best_yi_all):
             acc_all += acc_ves
             acc_gt_all += acc_gt
             yi_all += yi_ves
-            acc_all_ske += acc_ske
+            #acc_all_ske += acc_ske
 
         se_all = se_all / len(test_loader)
         sp_all = sp_all / len(test_loader)
         acc_all = acc_all / len(test_loader)
         yi_all = yi_all / len(test_loader)
         acc_gt_all = acc_gt_all / len(test_loader)
-        acc_all_ske = acc_all_ske / len(test_loader)
+        #acc_all_ske = acc_all_ske / len(test_loader)
 
         print('se:', se_all)
         print('sp:', sp_all)
         print('acc:', acc_all)
         print('acc_gt:', acc_gt_all)
         print('yi:', yi_all)
-        print('acc_ske:', acc_all_ske)
+        #print('acc_ske:', acc_all_ske)
     print('----------------test end-----------------')
     return acc_all
 

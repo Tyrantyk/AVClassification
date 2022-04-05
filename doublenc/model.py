@@ -393,14 +393,22 @@ class ResUNet34_2task_cascade(torch.nn.Module):
                 layers.append(block(in_planes, planes, stride))
                 in_planes = planes * block.expansion
             return nn.Sequential(*layers)
-
+        def activation(self, x):
+            y = x-0.5
+            t = torch.exp(-1*torch.pow(y,2))
+            z = t+1-torch.exp(torch.tensor(-1*0.25, dtype=torch.float32))
+            return z
         def forward(self, x):
             # encoder
             out_first = self.firstconv(x)
             out_enc1 = self.enc1(out_first)
+            #out_enc1 = self.e_nl1(out_enc1)
             out_enc2 = self.enc2(out_enc1)
+            #out_enc2 = self.e_nl2(out_enc2)
             out_enc3 = self.enc3(out_enc2)
+            #out_enc3 = self.e_nl3(out_enc3)
             out_enc4 = self.enc4(out_enc3)
+            #out_enc4 = self.e_nl4(out_enc4)
             out_center = self.centerblock(out_enc4)
 
             # decoder vessel segmentation
@@ -412,27 +420,30 @@ class ResUNet34_2task_cascade(torch.nn.Module):
             out_dec2_task1 = self.dec2_task1(torch.cat([out_enc2, out_up2_task1], dim=1))
             out_up1_task1 = self.up1_task1(out_dec2_task1)
             out_dec1_task1 = self.dec1_task1(torch.cat([out_enc1, out_up1_task1], dim=1))
+            activate = self.activation(out_dec1_task1)
             out_task1 = self.finalconv_task1(out_dec1_task1)
 
             # decoder a/v classification
-            vessel1 = out_dec4_task1.sigmoid()
+          
+            vessel1 = out_dec4_task1 + torch.tensor(1.0,dtype=torch.float32)
             out_dec4_task2 = self.dec4_task2(torch.cat([out_enc4, out_center], dim=1))
             out_dec4_task2 = self.e_nl4(out_dec4_task2, vessel1)
             out_up3_task2 = self.up3_task2(out_dec4_task2)
 
-            vessel2 = out_dec3_task1.sigmoid()
+            vessel2 = out_dec3_task1 + torch.tensor(1.0,dtype=torch.float32)
             out_dec3_task2 = self.dec3_task2(torch.cat([out_enc3, out_up3_task2], dim=1))
             out_dec3_task2 = self.e_nl3(out_dec3_task2, vessel2)
             out_up2_task2 = self.up2_task2(out_dec3_task2)
 
-            vessel3 = out_dec2_task1.sigmoid()
+            vessel3 = out_dec2_task1 + torch.tensor(1.0,dtype=torch.float32)
             out_dec2_task2 = self.dec2_task2(torch.cat([out_enc2, out_up2_task2], dim=1))
             out_dec2_task2 = self.e_nl2(out_dec2_task2, vessel3)
             out_up1_task2 = self.up1_task2(out_dec2_task2)
 
-            vessel4 = out_dec1_task1.sigmoid()
+            vessel4 = out_dec1_task1 + torch.tensor(1.0,dtype=torch.float32)
             out_dec1_task2 = self.dec1_task2(torch.cat([out_enc1, out_up1_task2], dim=1))
             out_dec1_task2 = self.e_nl1(out_dec1_task2, vessel4)
+            out_dec1_task2 = activate * out_dec1_task2
             out_task2 = self.finalconv_task2(out_dec1_task2)
 
             return torch.sigmoid(out_task1), out_task2

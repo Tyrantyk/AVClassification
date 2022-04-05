@@ -5,9 +5,12 @@ from model import ResUNet34_2task_cascade
 from DataLoader import *
 import argparse
 import time
-from new_test import *
+#from new_test import *
+from test import *
 import random
 from PIL import Image
+from celoss import CrossEntropyLoss
+from networks.TransSegNet_81 import TransSegNet_81
 #os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 dir_avdrive_train_img = "/workspace/workspace/data/training/images_aug_patch"
@@ -28,6 +31,7 @@ parser.add_argument('-seed', default=20, type=int,
                     help='random seed')
 args = parser.parse_args()
 lossf_ce = torch.nn.CrossEntropyLoss(ignore_index=3)
+lossf_ceself = CrossEntropyLoss()
 lossf_bce = torch.nn.BCELoss()
 
 random.seed(args.seed)
@@ -56,7 +60,7 @@ def train_2task_AVDRIVE(dataset='AVDRIVE'):
     #simclr = torch.nn.DataParallel(simclr)
     #simclr.load_state_dict(dic['state_dict'])
       
-    net = ResUNet34_2task_cascade(3).cuda()
+    net = TransSegNet_81().cuda()
     #net = torch.load('net.pth')      
     for name,p in net.named_parameters():
         p.requires_grad = True
@@ -91,12 +95,15 @@ def train_2task_AVDRIVE(dataset='AVDRIVE'):
 
             optimizer.zero_grad()
             net.zero_grad() 
-            fake_2ves, fake_ves = net(real_img)
+            #fake_2ves, fake_ves = net(real_img)
+            fake_ves = net(real_img)
             loss_ves = lossf_ce(fake_ves, label)
-            loss_bves = lossf_bce(fake_2ves,ves)
+            #loss_ves = lossf_ceself(fake_ves, label)
+            #loss_bves = lossf_bce(fake_2ves,ves)
 
             #print(loss_ves.item(), loss_bves.item())
-            loss = (1-l)*loss_ves + l*loss_bves
+            #loss = (1-l)*loss_ves + l*loss_bves
+            loss = loss_ves
             train_epoch_loss = train_epoch_loss + loss
             loss.backward()
             optimizer.step()
@@ -106,11 +113,11 @@ def train_2task_AVDRIVE(dataset='AVDRIVE'):
         print("loss:",train_epoch_loss.item())
         torch.save(net, 'finalnet.pth')
         #if epoch % 2 == 0: 
-        #model_acc = test_in_train_AVDRIVE(testloader, net, best_yi_all)
-        #print("model_acc:",model_acc)
-        #if model_acc > best_yi_all:
-        #    torch.save(net, 'net.pth')
-        #    best_yi_all = model_acc
+        model_acc = test_in_train_AVDRIVE(testloader, net, best_yi_all)
+        print("model_acc:",model_acc)
+        if model_acc > best_yi_all:
+            torch.save(net, 'net.pth')
+            best_yi_all = model_acc
         scheduler.step()
 
 if __name__ == '__main__':

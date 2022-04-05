@@ -12,7 +12,7 @@ dir_avdrive_test_gt = "./data/test/av_label"
 dir_avdrive_test_skeleton = "./data/test/skeleton"
 dir_avdrive_test_vessel = "./data/test/vessel"
 
-def test_in_train_AVDRIVE(test_loader, net, best_yi_all,epoch):
+def test_in_train_AVDRIVE(test_loader, net, best_yi_all):
 
     print('----------------test begin-----------------')
     with torch.no_grad():
@@ -42,11 +42,11 @@ def test_in_train_AVDRIVE(test_loader, net, best_yi_all,epoch):
 
             net_input = test_img_pad
             label = test_label_pad
-            test_yfake_ske, test_yfake_ves = net(net_input)[0:2]
-            
+            #test_yfake_ske, test_yfake_ves = net(net_input)[0:2]
+            test_yfake_ves = net(net_input)
         
             test_yfake_ves = test_yfake_ves[:,:,28:(28+584),37:(37+565)]
-            test_yfake_ske = test_yfake_ske[:,:,28:(28+584),37:(37+565)]
+            #test_yfake_ske = test_yfake_ske[:,:,28:(28+584),37:(37+565)]
 
             label = label[:,28:(28+584),37:(37+565)]
 
@@ -55,7 +55,7 @@ def test_in_train_AVDRIVE(test_loader, net, best_yi_all,epoch):
 
             label = label.detach().cpu().numpy()
             test_yfake_ves = test_yfake_ves.detach().cpu().numpy()
-            test_yfake_ske = test_yfake_ske.squeeze().detach().cpu().numpy()
+            #test_yfake_ske = test_yfake_ske.squeeze().detach().cpu().numpy()
 
             
             label = label.reshape(-1)

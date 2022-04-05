@@ -4,7 +4,7 @@ import torchvision.transforms
 from model import *
 from DataLoader import *
 import argparse
-
+from networks.TransSegNet_81 import TransSegNet_81
 from test import *
 import random
 #os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
@@ -48,13 +48,13 @@ def train_2task_AVDRIVE():
     trainloader = avdrive_trainloader
     testloader = avdrive_testloader
 
-    net = ResUNet34_2task(3).cuda()
+    net = TransSegNet_81().cuda()
 
 
     for name,p in net.named_parameters():
         p.requires_grad = True
     
-    optimizer = torch.optim.Adam(net.parameters(), lr=1e-3, betas=(0.9, 0.999))
+    optimizer = torch.optim.Adam(net.parameters(), lr=2e-4, betas=(0.9, 0.999))
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)    
 
     print('----------------AVDrive--------------------')
@@ -81,11 +81,14 @@ def train_2task_AVDRIVE():
             
             # fake_2ves, fake_ves = net(real_img)
             # loss_ves = lossf_ce(fake_ves, label)
-            pre_2ves, pre_skelton= net(real_img)
-            loss_ves = lossf_bce(pre_2ves,ves)
-            loss_skelton = lossf_bce(pre_skelton,skeleton)
+            #pre_2ves, pre_skelton= net(real_img)
+            pre_2ves , pre2= net(real_img)
+            loss_ves1 = lossf_bce(pre_2ves,ves)
+            loss2 = lossf_bce(pre2,ves)
+            #loss_skelton = lossf_bce(pre_skelton,skeleton)
             #print(loss_ves.item(), loss_bves.item())
-            loss = (1-l)*loss_ves + l*loss_skelton
+            #loss = (1-l)*loss_ves + l*loss_skelton
+            loss = loss_ves1 + loss2
             train_epoch_loss = train_epoch_loss + loss
             loss.backward()
             optimizer.step()
